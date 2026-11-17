@@ -125,3 +125,10 @@ git push
 Adicione as capturas de tela em `docs/evidencias/` se desejar disponibilizá-las diretamente no repositório.
 
 Projeto acadêmico. Os dados demonstrativos utilizados nos testes são fictícios.
+
+## Autor e finalidade acadêmica
+
+Projeto desenvolvido como atividade acadêmica da UNIPAR,
+com o objetivo de aplicar conceitos de programação web,
+PHP e banco de dados MySQL.
+
