@@ -21,15 +21,21 @@ if ($pagina === 'relatorios' && ($_GET['exportar'] ?? '') === 'csv') {
         exit('Data inválida para gerar o relatório.');
     }
 
-    $sqlExportacao = "SELECT f.codigo, p.nome AS produto, t.nome AS transportador,
+    $sqlExportacao = "SELECT f.codigo,
+                             GROUP_CONCAT(CONCAT(p.nome, ' (Qtd: ', fp.quantidade, ')')
+                                          ORDER BY p.nome SEPARATOR ', ') AS produtos,
+                             t.nome AS transportador,
                              o.cidade AS origem, d.cidade AS destino,
                              f.data_envio, f.previsao_entrega, f.status
                       FROM fretes f
-                      INNER JOIN produtos p ON p.id = f.produto_id
+                      INNER JOIN frete_produtos fp ON fp.frete_id = f.id
+                      INNER JOIN produtos p ON p.id = fp.produto_id
                       INNER JOIN transportadores t ON t.id = f.transportador_id
                       INNER JOIN enderecos o ON o.id = f.endereco_origem_id
                       INNER JOIN enderecos d ON d.id = f.endereco_destino_id
                       WHERE f.data_envio = ?
+                      GROUP BY f.id, f.codigo, t.nome, o.cidade, d.cidade,
+                               f.data_envio, f.previsao_entrega, f.status
                       ORDER BY f.codigo";
 
     $stmtExportacao = $pdo->prepare($sqlExportacao);
@@ -43,13 +49,13 @@ if ($pagina === 'relatorios' && ($_GET['exportar'] ?? '') === 'csv') {
     $saida = fopen('php://output', 'w');
     // BOM UTF-8 para o Excel reconhecer corretamente os acentos
     fwrite($saida, "\\xEF\\xBB\\xBF");
-    fputcsv($saida, ['Código', 'Produto', 'Transportador', 'Origem', 'Destino',
+    fputcsv($saida, ['Código', 'Produtos e quantidades', 'Transportador', 'Origem', 'Destino',
                      'Data de envio', 'Previsão de entrega', 'Status'], ';');
 
     foreach ($fretesExportacao as $frete) {
         fputcsv($saida, [
             $frete['codigo'],
-            $frete['produto'],
+            $frete['produtos'],
             $frete['transportador'],
             $frete['origem'],
             $frete['destino'],
@@ -129,16 +135,22 @@ unset($_SESSION['mensagem']);
           $dataRelatorio = date('Y-m-d');
       }
 
-      $sqlDiario = "SELECT f.codigo, p.nome AS produto, t.nome AS transportador,
-                           o.cidade AS origem, d.cidade AS destino,
-                           f.data_envio, f.previsao_entrega, f.status
-                    FROM fretes f
-                    INNER JOIN produtos p ON p.id = f.produto_id
-                    INNER JOIN transportadores t ON t.id = f.transportador_id
-                    INNER JOIN enderecos o ON o.id = f.endereco_origem_id
-                    INNER JOIN enderecos d ON d.id = f.endereco_destino_id
-                    WHERE f.data_envio = ?
-                    ORDER BY f.codigo";
+      $sqlDiario = "SELECT f.codigo,
+                          GROUP_CONCAT(CONCAT(p.nome, ' (Qtd: ', fp.quantidade, ')')
+                                       ORDER BY p.nome SEPARATOR ', ') AS produtos,
+                          t.nome AS transportador,
+                          o.cidade AS origem, d.cidade AS destino,
+                          f.data_envio, f.previsao_entrega, f.status
+                   FROM fretes f
+                   INNER JOIN frete_produtos fp ON fp.frete_id = f.id
+                   INNER JOIN produtos p ON p.id = fp.produto_id
+                   INNER JOIN transportadores t ON t.id = f.transportador_id
+                   INNER JOIN enderecos o ON o.id = f.endereco_origem_id
+                   INNER JOIN enderecos d ON d.id = f.endereco_destino_id
+                   WHERE f.data_envio = ?
+                   GROUP BY f.id, f.codigo, t.nome, o.cidade, d.cidade,
+                            f.data_envio, f.previsao_entrega, f.status
+                   ORDER BY f.codigo";
       $stmtDiario = $pdo->prepare($sqlDiario);
       $stmtDiario->execute([$dataRelatorio]);
       $fretesDoDia = $stmtDiario->fetchAll(PDO::FETCH_ASSOC);
@@ -157,12 +169,12 @@ unset($_SESSION['mensagem']);
       <p class="subtitle">Resultado para <?= date('d/m/Y', strtotime($dataRelatorio)) ?>: <strong><?= count($fretesDoDia) ?></strong> frete(s).</p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Código</th><th>Produto</th><th>Transportador</th><th>Origem</th><th>Destino</th><th>Envio</th><th>Previsão</th><th>Status</th></tr></thead>
+          <thead><tr><th>Código</th><th>Produtos e quantidades</th><th>Transportador</th><th>Origem</th><th>Destino</th><th>Envio</th><th>Previsão</th><th>Status</th></tr></thead>
           <tbody>
             <?php foreach ($fretesDoDia as $f): ?>
               <tr>
                 <td><?= h($f['codigo']) ?></td>
-                <td><?= h($f['produto']) ?></td>
+                <td><?= h($f['produtos']) ?></td>
                 <td><?= h($f['transportador']) ?></td>
                 <td><?= h($f['origem']) ?></td>
                 <td><?= h($f['destino']) ?></td>
